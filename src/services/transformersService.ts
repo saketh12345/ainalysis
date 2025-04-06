@@ -25,12 +25,14 @@ export async function initBiomedicalAnalyzer() {
     biomedicalModelLoading = true;
     console.log("Loading biomedical text analysis model...");
     
-    // Load a text generation model suitable for biomedical text
-    // We're using a smaller model that can run in the browser
+    // Use a smaller, more browser-friendly model
     biomedicalAnalyzer = await pipeline(
       'text-generation',
-      'onnx-community/distilgpt2',
-      { device: 'cpu' }
+      'Xenova/distilgpt2',  // Using Xenova's browser-optimized version of distilgpt2
+      { 
+        quantized: true,    // Use quantized model for better browser performance
+        device: 'cpu'       // Explicitly use CPU for compatibility
+      }
     );
     
     console.log("Biomedical model loaded successfully");
@@ -105,17 +107,33 @@ export async function analyzeWithTransformers(text: string): Promise<AnalysisRes
       });
     }
     
-    // Use the text generation model to create a simple summary
-    // This is not ideal for medical analysis but demonstrates the integration
-    const summaryResult = await biomedicalAnalyzer(
-      `Medical report summary: ${text.substring(0, 100)}...`,
-      { max_new_tokens: 50, do_sample: true }
-    );
+    // Generate a simple analysis summary with the text generation model
+    let summary;
+    try {
+      const promptText = `Medical report summary: ${text.substring(0, 100)}...`;
+      const summaryResult = await biomedicalAnalyzer(
+        promptText,
+        { 
+          max_new_tokens: 50, 
+          do_sample: true,
+          temperature: 0.7
+        }
+      );
+      
+      // Extract the generated text and clean it up
+      summary = summaryResult[0]?.generated_text || "";
+      // Remove the input prompt from the output
+      summary = summary.replace(promptText, "").trim();
+      
+      // If the summary is empty or too short, use a default message
+      if (!summary || summary.length < 20) {
+        summary = "Medical report processed. Please consult a healthcare professional for interpretation.";
+      }
+    } catch (summaryError) {
+      console.error("Error generating summary:", summaryError);
+      summary = "Medical report processed. The browser-based analysis provides basic insights only.";
+    }
     
-    const summary = summaryResult[0].generated_text || 
-      "This medical report has been processed using transformer models. Please consult a healthcare professional for accurate interpretation.";
-    
-    // For a real application, you would want to use a model specifically fine-tuned for medical report analysis
     return {
       summary,
       keyFindings: findings,
