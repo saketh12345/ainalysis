@@ -1,13 +1,15 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
 import FileUploader from "@/components/FileUploader";
 import AnalysisResult from "@/components/AnalysisResult";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { performOCR } from "@/services/ocrService";
 import { analyzeReport } from "@/services/aiService";
+import { initBiomedicalAnalyzer, analyzeWithTransformers } from "@/services/transformersService";
 
 interface AnalysisData {
   summary: string;
@@ -18,6 +20,34 @@ interface AnalysisData {
 const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+  const [analysisMode, setAnalysisMode] = useState<"cloud" | "local">("cloud");
+  const [transformersReady, setTransformersReady] = useState(false);
+  const [isLoadingTransformers, setIsLoadingTransformers] = useState(false);
+
+  // Initialize the transformers model on component mount
+  useEffect(() => {
+    const loadTransformersModel = async () => {
+      if (!transformersReady && !isLoadingTransformers) {
+        setIsLoadingTransformers(true);
+        try {
+          const success = await initBiomedicalAnalyzer();
+          setTransformersReady(success);
+          if (success) {
+            toast.success("Transformers model loaded successfully!");
+          } else {
+            toast.error("Failed to load transformers model");
+          }
+        } catch (error) {
+          console.error("Error loading transformers:", error);
+          toast.error("Error initializing transformers");
+        } finally {
+          setIsLoadingTransformers(false);
+        }
+      }
+    };
+
+    loadTransformersModel();
+  }, []);
 
   const handleFileUpload = async (file: File) => {
     try {
@@ -32,9 +62,17 @@ const Index = () => {
         throw new Error("Could not extract text from the uploaded file");
       }
       
-      // Then analyze the extracted text
+      // Then analyze the extracted text based on selected mode
       toast.info("Analyzing medical data...");
-      const analysisResult = await analyzeReport(extractedText);
+      
+      let analysisResult;
+      
+      if (analysisMode === "local" && transformersReady) {
+        analysisResult = await analyzeWithTransformers(extractedText);
+      } else {
+        // Fall back to cloud API if transformers not ready or cloud mode selected
+        analysisResult = await analyzeReport(extractedText);
+      }
       
       setAnalysisData(analysisResult);
       toast.success("Analysis complete!");
@@ -58,6 +96,46 @@ const Index = () => {
               Upload your medical test report and our AI will analyze it to provide you with a 
               clear summary, highlight key findings, and offer personalized recommendations.
             </p>
+          </div>
+
+          <div className="mb-6">
+            <Tabs defaultValue="cloud" onValueChange={(value) => setAnalysisMode(value as "cloud" | "local")}>
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="cloud">Cloud AI</TabsTrigger>
+                <TabsTrigger 
+                  value="local" 
+                  disabled={!transformersReady && !isLoadingTransformers}
+                  className="relative"
+                >
+                  Browser AI
+                  {isLoadingTransformers && (
+                    <span className="absolute top-1 right-1 h-2 w-2">
+                      <span className="animate-ping absolute h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                      <span className="rounded-full h-2 w-2 bg-sky-500"></span>
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="cloud">
+                <Card className="border-t-0 rounded-t-none">
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-gray-600">
+                      This mode uses a powerful cloud-based AI to analyze your medical reports with high accuracy.
+                    </p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              <TabsContent value="local">
+                <Card className="border-t-0 rounded-t-none">
+                  <CardContent className="pt-4">
+                    <p className="text-sm text-gray-600">
+                      This mode uses transformers running directly in your browser. Your data stays on your device for better privacy.
+                      {!transformersReady && isLoadingTransformers && " Loading models..."}
+                    </p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </div>
 
           <div className="mb-10">
