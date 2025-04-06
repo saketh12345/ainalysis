@@ -1,1 +1,5 @@
+
 project_id = "ddrcidbvmdukwlhtiagx"
+
+[functions.analyze-clinical-text]
+verify_jwt = false

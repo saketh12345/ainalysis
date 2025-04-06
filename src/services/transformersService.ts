@@ -1,3 +1,4 @@
+
 /**
  * This file handles communication with the server-side transformer model via edge function
  */
@@ -17,8 +18,8 @@ export async function analyzeWithTransformers(text: string): Promise<AnalysisRes
     console.log("transformersService: Starting edge function call for analysis...");
     const startTime = performance.now();
     
-    // Call the edge function to analyze the text
-    const response = await fetch('/api/analyze-medical-report', {
+    // Call the Supabase edge function to analyze the text
+    const response = await fetch('https://ddrcidbvmdukwlhtiagx.supabase.co/functions/v1/analyze-clinical-text', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
