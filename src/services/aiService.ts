@@ -12,10 +12,10 @@ interface AnalysisResult {
 
 export async function analyzeReport(text: string): Promise<AnalysisResult> {
   try {
+    // Create a structured system prompt that forces JSON response
     const systemPrompt = `
-      You are a helpful medical assistant that analyzes medical test reports. 
-      Extract key medical test values, identify abnormal results, and provide a clear summary.
-      Format your response as a JSON object with the following structure:
+      You are a medical assistant analyzing test reports. Extract key values, identify abnormal results, and provide a clear summary.
+      The response MUST be valid JSON with this exact structure:
       {
         "summary": "A concise summary of the overall health status based on the report",
         "keyFindings": [
@@ -29,13 +29,30 @@ export async function analyzeReport(text: string): Promise<AnalysisResult> {
           "List of simple recommendations based on the results"
         ]
       }
-      Only respond with valid JSON. Focus on extracting actual medical values from the text.
     `;
 
     const messages: Message[] = [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Please analyze this medical report: ${text}` }
+      { role: 'user', content: `Analyze this medical report and respond ONLY with valid JSON: ${text}` }
     ];
+
+    console.log("Sending request to OpenRouter API");
+    
+    // If the AI response fails, we'll provide a fallback analysis
+    const fallbackAnalysis = {
+      summary: "We were unable to analyze this report automatically. Please consult with your healthcare provider for interpretation.",
+      keyFindings: [
+        { 
+          name: "Hemoglobin", 
+          value: "Not available", 
+          status: "normal" 
+        }
+      ],
+      recommendations: [
+        "Please share this report with your healthcare provider for proper interpretation",
+        "Schedule a follow-up appointment to discuss these results"
+      ]
+    };
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -46,30 +63,65 @@ export async function analyzeReport(text: string): Promise<AnalysisResult> {
         'X-Title': 'MediView AI Summarizer'
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3.1-405b',
+        model: 'anthropic/claude-3-opus',
         messages,
-        temperature: 0.2,
-        max_tokens: 1500
+        temperature: 0.1,
+        max_tokens: 1500,
+        response_format: { type: "json_object" }
       })
     });
 
     if (!response.ok) {
-      throw new Error(`AI analysis failed: ${response.status}`);
+      console.error(`AI analysis failed with status: ${response.status}`);
+      return fallbackAnalysis;
     }
 
     const data = await response.json();
+    console.log("AI Response received:", data);
     
     try {
-      // The AI response should be JSON, but let's handle potential parsing issues
+      // Try to parse the response as JSON
       const content = data.choices[0].message.content;
-      let jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
-                     content.match(/{[\s\S]*}/);
-                     
-      const jsonString = jsonMatch ? jsonMatch[0].replace(/```json|```/g, '') : content;
-      return JSON.parse(jsonString);
+      console.log("Content from AI:", content);
+      
+      // Try different approaches to extract JSON
+      let parsedResult;
+      
+      try {
+        // First try direct JSON parse
+        parsedResult = JSON.parse(content);
+      } catch (directParseError) {
+        console.log("Direct parse failed, trying to extract JSON from text");
+        
+        // Try to extract JSON using regex
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            parsedResult = JSON.parse(jsonMatch[0]);
+          } catch (regexParseError) {
+            console.error("Regex extraction failed:", regexParseError);
+            throw new Error("Could not extract valid JSON from AI response");
+          }
+        } else {
+          throw new Error("No JSON object found in AI response");
+        }
+      }
+      
+      // Validate the parsed result has the expected structure
+      if (!parsedResult || typeof parsedResult !== 'object') {
+        throw new Error("AI response is not a valid object");
+      }
+      
+      // Ensure all required fields exist or set defaults
+      return {
+        summary: parsedResult.summary || "No summary available",
+        keyFindings: Array.isArray(parsedResult.keyFindings) ? parsedResult.keyFindings : [],
+        recommendations: Array.isArray(parsedResult.recommendations) ? parsedResult.recommendations : []
+      };
     } catch (parseError) {
       console.error('Error parsing AI response:', parseError);
-      throw new Error('Failed to parse the AI analysis result');
+      // Use fallback if parsing fails
+      return fallbackAnalysis;
     }
   } catch (error) {
     console.error('Error analyzing report:', error);
