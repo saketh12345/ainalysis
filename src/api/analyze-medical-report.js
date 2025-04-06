@@ -1,3 +1,4 @@
+
 // Edge function for analyzing medical reports using the Hugging Face ClinicalBERT model
 
 export async function handler(req, context) {
@@ -33,15 +34,12 @@ export async function handler(req, context) {
     console.log("Edge function: Using model: medicalai/ClinicalBERT");
     
     // Log request params
-    console.log("Edge function: Request parameters:", {
-      max_new_tokens: 500,
-      temperature: 0.2,
-      top_p: 0.95
-    });
+    console.log("Edge function: Request simplified for compatibility with ClinicalBERT model");
     
     const startTime = Date.now();
     
     // Make a request to the Hugging Face API with ClinicalBERT model
+    // Simplified request without unsupported parameters
     const response = await fetch("https://api-inference.huggingface.co/models/medicalai/ClinicalBERT", {
       method: "POST",
       headers: {
@@ -49,13 +47,7 @@ export async function handler(req, context) {
         "Authorization": `Bearer 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`
       },
       body: JSON.stringify({
-        inputs: promptText,
-        parameters: {
-          max_new_tokens: 500,
-          temperature: 0.2,
-          top_p: 0.95,
-          return_full_text: false
-        }
+        inputs: promptText
       }),
     });
     
@@ -72,9 +64,20 @@ export async function handler(req, context) {
     const result = await response.json();
     console.log("Edge function: Successfully parsed JSON response from Hugging Face");
     
-    const generatedText = result && result[0] && result[0].generated_text 
-      ? result[0].generated_text 
-      : "";
+    // ClinicalBERT might not return generated text in the expected format
+    // Handle different possible response formats
+    let generatedText = "";
+    if (result && result[0] && result[0].generated_text) {
+      generatedText = result[0].generated_text;
+    } else if (result && typeof result === 'string') {
+      generatedText = result;
+    } else if (result && result.text) {
+      generatedText = result.text;
+    } else {
+      // Log the actual shape of the response
+      console.log("Edge function: Unexpected response format:", JSON.stringify(result).substring(0, 200));
+      generatedText = JSON.stringify(result);
+    }
     
     console.log(`Edge function: Generated text length: ${generatedText.length} characters`);
     if (generatedText.length > 0) {
@@ -115,7 +118,45 @@ export async function handler(req, context) {
       keyFindings.push({ name, value, status });
     }
     
-    // If we couldn't extract structured findings, add a generic one
+    // If we couldn't extract structured findings, attempt direct extraction from text
+    if (keyFindings.length === 0) {
+      console.log("Edge function: No structured findings extracted from model response, attempting direct extraction");
+      
+      // Direct extraction of common lab values using regex patterns
+      const bloodGlucoseMatch = text.match(/(?:blood glucose|glucose)[:\s]+(\d+\.?\d*)\s*(?:mg\/dL|mmol\/L)/i);
+      const cholesterolMatch = text.match(/(?:total cholesterol|cholesterol)[:\s]+(\d+\.?\d*)\s*(?:mg\/dL|mmol\/L)/i);
+      const bloodPressureMatch = text.match(/(?:blood pressure|BP)[:\s]+(\d+\/\d+)\s*(?:mmHg)?/i);
+      
+      if (bloodGlucoseMatch) {
+        const value = parseFloat(bloodGlucoseMatch[1]);
+        keyFindings.push({
+          name: "Blood Glucose",
+          value: `${bloodGlucoseMatch[1]} mg/dL`,
+          status: value > 140 ? 'abnormal' : value > 100 ? 'warning' : 'normal'
+        });
+      }
+      
+      if (cholesterolMatch) {
+        const value = parseFloat(cholesterolMatch[1]);
+        keyFindings.push({
+          name: "Total Cholesterol",
+          value: `${cholesterolMatch[1]} mg/dL`,
+          status: value > 240 ? 'abnormal' : value > 200 ? 'warning' : 'normal'
+        });
+      }
+      
+      if (bloodPressureMatch) {
+        const [systolic, diastolic] = bloodPressureMatch[1].split('/').map(Number);
+        keyFindings.push({
+          name: "Blood Pressure",
+          value: `${bloodPressureMatch[1]} mmHg`,
+          status: systolic > 140 || diastolic > 90 ? 'abnormal' : 
+                systolic > 120 || diastolic > 80 ? 'warning' : 'normal'
+        });
+      }
+    }
+    
+    // If we still couldn't extract any structured findings, add a generic one
     if (keyFindings.length === 0) {
       console.log("Edge function: No structured findings extracted, adding generic finding");
       keyFindings.push({
@@ -129,7 +170,7 @@ export async function handler(req, context) {
     
     // Extract recommendations from the response
     const recommendationsMatch = generatedText.match(/RECOMMENDATIONS:(.*?)(?=$)/s);
-    const recommendationsText = recommendationsMatch && recommendationsText[1] 
+    const recommendationsText = recommendationsMatch && recommendationsMatch[1] 
       ? recommendationsMatch[1].trim() 
       : "";
       
