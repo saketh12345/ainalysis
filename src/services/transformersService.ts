@@ -5,7 +5,7 @@ import { pipeline, env } from '@huggingface/transformers';
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 // Set the Hugging Face token
-env.accessToken = "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";
+env.apiToken = "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";
 
 interface AnalysisResult {
   summary: string;
@@ -33,7 +33,6 @@ export async function initBiomedicalAnalyzer() {
       'meta-llama/Meta-Llama-3-8B-Instruct',
       { 
         device: 'cpu',       // Explicitly use CPU for compatibility
-        use_auth_token: "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" // Use the token
       }
     );
     
