@@ -1,3 +1,4 @@
+
 import { pipeline, env } from '@huggingface/transformers';
 
 // Configure the transformers library
@@ -33,6 +34,7 @@ export async function initBiomedicalAnalyzer() {
       'meta-llama/Meta-Llama-3-8B-Instruct',
       { 
         device: 'cpu',       // Explicitly use CPU for compatibility
+        apiKey: "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" // Pass API key directly to pipeline
       }
     );
     
