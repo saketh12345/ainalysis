@@ -46,6 +46,7 @@ serve(async (req) => {
     const startTime = Date.now()
     
     // Make a request to the Hugging Face API with ClinicalBERT model
+    // Removing unsupported parameters like top_p
     const response = await fetch("https://api-inference.huggingface.co/models/medicalai/ClinicalBERT", {
       method: "POST",
       headers: {
@@ -55,9 +56,8 @@ serve(async (req) => {
       body: JSON.stringify({
         inputs: promptText,
         parameters: {
-          max_new_tokens: 500,
+          max_length: 500,
           temperature: 0.2,
-          top_p: 0.95,
           return_full_text: false
         }
       }),

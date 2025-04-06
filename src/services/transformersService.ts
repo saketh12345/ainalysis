@@ -45,6 +45,8 @@ export async function analyzeWithTransformers(text: string): Promise<AnalysisRes
       hasSummary: !!analysisResult.summary,
       hasKeyFindings: Array.isArray(analysisResult.keyFindings),
       hasRecommendations: Array.isArray(analysisResult.recommendations),
+      keyFindingsCount: analysisResult.keyFindings?.length,
+      recommendationsCount: analysisResult.recommendations?.length
     });
     
     // If the edge function provided a complete analysis, use it
