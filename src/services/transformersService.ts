@@ -1,3 +1,7 @@
+/**
+ * This file now handles communication with the Hugging Face API via edge functions
+ * instead of running models directly in the browser.
+ */
 
 import { pipeline, env } from '@huggingface/transformers';
 
@@ -49,33 +53,12 @@ export async function initBiomedicalAnalyzer() {
 }
 
 /**
- * Analyzes medical report text using Hugging Face transformers
- * @param text The medical report text
+ * Analyzes medical report text using a server-side edge function
+ * @param text The medical report text to analyze
  */
 export async function analyzeWithTransformers(text: string): Promise<AnalysisResult> {
   try {
-    // Make sure model is loaded
-    if (biomedicalAnalyzer === null) {
-      const success = await initBiomedicalAnalyzer();
-      if (!success) {
-        throw new Error("Could not load Llama 3 model");
-      }
-    }
-    
-    console.log("Analyzing text with Llama 3 model...");
-    
-    // Create a medical-specific prompt for better results
-    const promptText = `
-    You are a medical AI assistant analyzing a patient's medical report. 
-    Extract key health metrics, identify abnormal values, and provide a concise summary.
-    
-    Medical report: ${text}
-    
-    Format your response as follows:
-    SUMMARY: [Brief overview of patient health based on the report]
-    KEY FINDINGS: [List key metrics with their values and status (normal/abnormal/warning)]
-    RECOMMENDATIONS: [Provide 2-3 simple recommendations based on the findings]
-    `;
+    console.log("Sending text to edge function for analysis...");
     
     // Extract key medical terms using regex patterns
     const bloodGlucoseMatch = text.match(/(?:blood glucose|glucose)[:\s]+(\d+\.?\d*)\s*(?:mg\/dL|mmol\/L)/i);
@@ -122,65 +105,42 @@ export async function analyzeWithTransformers(text: string): Promise<AnalysisRes
       });
     }
     
-    // Generate a comprehensive analysis using the Llama 3 model
-    let summary;
-    let recommendations = [
-      "Please consult with a healthcare professional for interpretation of these results",
-      "Regular check-ups are recommended for monitoring your health"
-    ];
+    // Call the edge function to analyze the text
+    const response = await fetch('/api/analyze-medical-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text }),
+    });
     
-    try {
-      const llmResult = await biomedicalAnalyzer(
-        promptText,
-        { 
-          max_new_tokens: 500,
-          do_sample: true,
-          temperature: 0.2,
-          top_p: 0.95
-        }
-      );
-      
-      // Extract the generated text
-      const generatedText = llmResult[0]?.generated_text || "";
-      
-      // Try to extract the summary from the response
-      const summaryMatch = generatedText.match(/SUMMARY:(.*?)(?=KEY FINDINGS:|$)/s);
-      if (summaryMatch && summaryMatch[1]) {
-        summary = summaryMatch[1].trim();
-      } else {
-        summary = "Medical report processed. Please consult a healthcare professional for interpretation.";
-      }
-      
-      // Try to extract recommendations
-      const recommendationsMatch = generatedText.match(/RECOMMENDATIONS:(.*?)(?=$)/s);
-      if (recommendationsMatch && recommendationsMatch[1]) {
-        const recommendationsText = recommendationsMatch[1].trim();
-        const extractedRecommendations = recommendationsText
-          .split(/\d+\.|\n-|\n\*/)
-          .map(item => item.trim())
-          .filter(item => item.length > 10);
-        
-        if (extractedRecommendations.length > 0) {
-          recommendations = extractedRecommendations;
-        }
-      }
-      
-    } catch (summaryError) {
-      console.error("Error generating analysis with Llama 3:", summaryError);
-      summary = "Medical report processed. The browser-based analysis provides basic insights only.";
+    if (!response.ok) {
+      throw new Error(`Edge function returned status ${response.status}`);
     }
     
+    const analysisResult = await response.json();
+    
+    // If the edge function provided a complete analysis, use it
+    if (analysisResult && analysisResult.summary) {
+      return analysisResult;
+    }
+    
+    // Otherwise return a fallback analysis based on the regex patterns
     return {
-      summary,
+      summary: "Medical report processed. Please consult a healthcare professional for interpretation.",
       keyFindings: findings,
-      recommendations: recommendations
+      recommendations: [
+        "Please consult with a healthcare professional for interpretation of these results",
+        "Regular check-ups are recommended for monitoring your health"
+      ]
     };
+    
   } catch (error) {
-    console.error("Error analyzing with transformers:", error);
+    console.error("Error analyzing with edge function:", error);
     
     // Return a fallback analysis
     return {
-      summary: "We could not automatically analyze this report using the Llama 3 model. Please consult with your healthcare provider for interpretation.",
+      summary: "We could not automatically analyze this report. Please consult with your healthcare provider for interpretation.",
       keyFindings: [
         { 
           name: "Analysis Status", 
@@ -190,8 +150,10 @@ export async function analyzeWithTransformers(text: string): Promise<AnalysisRes
       ],
       recommendations: [
         "Please share this report with your healthcare provider for proper interpretation",
-        "Consider trying the cloud-based analysis option for better results"
+        "Regular health check-ups are recommended"
       ]
     };
   }
 }
+
+// Remove the initBiomedicalAnalyzer function as it's no longer needed
