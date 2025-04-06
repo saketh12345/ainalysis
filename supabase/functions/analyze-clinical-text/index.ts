@@ -28,16 +28,16 @@ serve(async (req) => {
     
     console.log(`Edge function: Processing text of length ${text.length} characters`)
     
-    // Create a medical-specific prompt for the ClinicalBERT model
+    // Create a more focused medical prompt that addresses the specific requirements
     const promptText = `
-    Analyze this medical report and extract key health information:
+    Analyze this lab report and extract only the relevant medical information:
     
     ${text}
     
     Format your response as follows:
-    SUMMARY: [Brief overview of patient health based on the report]
-    KEY FINDINGS: [List key metrics with their values and status (normal/abnormal/warning)]
-    RECOMMENDATIONS: [Provide 2-3 simple recommendations based on the findings]
+    SUMMARY: [Provide an overall summary of the patient's health status based on the report]
+    KEY FINDINGS: [List ONLY the abnormal values (too high or too low). Format each as "Metric: Value - Status". For example: "Cholesterol: 250 mg/dL - Abnormal"]
+    RECOMMENDATIONS: [Provide 2-3 key insights or possible risks based on the abnormal values in the report]
     `
 
     console.log("Edge function: Sending request to Hugging Face API")
