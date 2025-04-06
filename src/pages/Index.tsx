@@ -1,14 +1,13 @@
+
 import { useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
 import FileUploader from "@/components/FileUploader";
 import AnalysisResult from "@/components/AnalysisResult";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { performOCR } from "@/services/ocrService";
 import { analyzeReport } from "@/services/aiService";
-import { analyzeWithTransformers } from "@/services/transformersService";
 
 interface AnalysisData {
   summary: string;
@@ -19,7 +18,6 @@ interface AnalysisData {
 const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
-  const [analysisMode, setAnalysisMode] = useState<"cloud" | "server">("cloud");
 
   const handleFileUpload = async (file: File) => {
     try {
@@ -34,17 +32,9 @@ const Index = () => {
         throw new Error("Could not extract text from the uploaded file");
       }
       
-      // Then analyze the extracted text based on selected mode
-      toast.info("Analyzing medical data...");
-      
-      let analysisResult;
-      
-      if (analysisMode === "server") {
-        analysisResult = await analyzeWithTransformers(extractedText);
-      } else {
-        // Use the cloud API for analysis
-        analysisResult = await analyzeReport(extractedText);
-      }
+      // Analyze the extracted text with ClinicalBERT
+      toast.info("Analyzing medical data with ClinicalBERT...");
+      const analysisResult = await analyzeReport(extractedText);
       
       setAnalysisData(analysisResult);
       toast.success("Analysis complete!");
@@ -65,36 +55,20 @@ const Index = () => {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-medical-dark mb-2">Medical Report Analyzer</h1>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Upload your medical test report and our AI will analyze it to provide you with a 
+              Upload your medical test report and our ClinicalBERT AI will analyze it to provide you with a 
               clear summary, highlight key findings, and offer personalized recommendations.
             </p>
           </div>
 
           <div className="mb-6">
-            <Tabs defaultValue="cloud" onValueChange={(value) => setAnalysisMode(value as "cloud" | "server")}>
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="cloud">Cloud AI</TabsTrigger>
-                <TabsTrigger value="server">Server AI</TabsTrigger>
-              </TabsList>
-              <TabsContent value="cloud">
-                <Card className="border-t-0 rounded-t-none">
-                  <CardContent className="pt-4">
-                    <p className="text-sm text-gray-600">
-                      This mode uses a powerful cloud-based AI to analyze your medical reports with high accuracy.
-                    </p>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              <TabsContent value="server">
-                <Card className="border-t-0 rounded-t-none">
-                  <CardContent className="pt-4">
-                    <p className="text-sm text-gray-600">
-                      This mode uses our server-side AI which provides better privacy and security for your medical data.
-                    </p>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm text-gray-600">
+                  This application uses the specialized ClinicalBERT model, designed specifically for medical text analysis.
+                  Upload your medical reports to get accurate insights based on clinical knowledge.
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="mb-10">

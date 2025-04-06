@@ -1,5 +1,5 @@
 
-// Edge function for analyzing medical reports using the Hugging Face API
+// Edge function for analyzing medical reports using the Hugging Face ClinicalBERT model
 
 export async function handler(req, context) {
   try {
@@ -14,12 +14,11 @@ export async function handler(req, context) {
       });
     }
     
-    // Create a medical-specific prompt for better results
+    // Create a medical-specific prompt for the ClinicalBERT model
     const promptText = `
-    You are a medical AI assistant analyzing a patient's medical report. 
-    Extract key health metrics, identify abnormal values, and provide a concise summary.
+    Analyze this medical report and extract key health information:
     
-    Medical report: ${text}
+    ${text}
     
     Format your response as follows:
     SUMMARY: [Brief overview of patient health based on the report]
@@ -27,8 +26,8 @@ export async function handler(req, context) {
     RECOMMENDATIONS: [Provide 2-3 simple recommendations based on the findings]
     `;
 
-    // Make a request to the Hugging Face API
-    const response = await fetch("https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct", {
+    // Make a request to the Hugging Face API with ClinicalBERT model
+    const response = await fetch("https://api-inference.huggingface.co/models/medicalai/ClinicalBERT", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
