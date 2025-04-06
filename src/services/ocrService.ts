@@ -7,11 +7,18 @@ export interface OCRResult {
   }>;
   OCRExitCode: number;
   IsErroredOnProcessing: boolean;
-  ErrorMessage: string;
+  ErrorMessage: string | string[];
 }
 
 export async function performOCR(file: File): Promise<string> {
   try {
+    // Check file size before sending to API
+    const MAX_FILE_SIZE = 1024 * 1024; // 1MB limit for OCR.space free API
+    
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`File size exceeds the maximum permissible file size limit of 1024 KB`);
+    }
+    
     const formData = new FormData();
     formData.append('file', file);
     formData.append('apikey', 'K82772512288957');
@@ -30,7 +37,10 @@ export async function performOCR(file: File): Promise<string> {
     const data: OCRResult = await response.json();
     
     if (data.IsErroredOnProcessing || data.OCRExitCode !== 1) {
-      throw new Error(data.ErrorMessage || 'OCR processing failed');
+      const errorMessage = Array.isArray(data.ErrorMessage) 
+        ? data.ErrorMessage.join(', ') 
+        : data.ErrorMessage || 'OCR processing failed';
+      throw new Error(errorMessage);
     }
 
     return data.ParsedResults[0]?.ParsedText || '';

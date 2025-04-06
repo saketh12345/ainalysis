@@ -67,18 +67,26 @@ export async function analyzeReport(text: string): Promise<AnalysisResult> {
         model: 'anthropic/claude-3-opus',
         messages,
         temperature: 0.1,
-        max_tokens: 1500,
+        max_tokens: 500, // Reduced from 1500 to stay within credit limits
         response_format: { type: "json_object" }
       })
     });
 
     if (!response.ok) {
       console.error(`AI analysis failed with status: ${response.status}`);
+      const errorData = await response.json();
+      console.error("API error details:", errorData);
       return fallbackAnalysis;
     }
 
     const data = await response.json();
     console.log("AI Response received:", data);
+    
+    // Check if we have a proper response structure
+    if (!data.choices || !data.choices[0]?.message?.content) {
+      console.error("Unexpected API response structure:", data);
+      return fallbackAnalysis;
+    }
     
     try {
       // Try to parse the response as JSON
