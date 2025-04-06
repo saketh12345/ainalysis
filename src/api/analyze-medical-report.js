@@ -32,7 +32,7 @@ export async function handler(req, context) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.HUGGINGFACE_API_KEY || "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"}`
+        "Authorization": `Bearer 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`
       },
       body: JSON.stringify({
         inputs: promptText,
