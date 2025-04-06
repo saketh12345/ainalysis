@@ -13,10 +13,24 @@ interface AnalysisResult {
  */
 export async function analyzeReport(text: string): Promise<AnalysisResult> {
   try {
-    console.log("Delegating to server-side ClinicalBERT analysis...");
-    return await analyzeWithTransformers(text);
+    console.log("aiService: Starting analysis with ClinicalBERT...");
+    console.log(`aiService: Text length to analyze: ${text.length} characters`);
+    
+    // Add a sample of the text being sent (first 100 chars)
+    if (text.length > 0) {
+      console.log(`aiService: Text sample: "${text.substring(0, 100)}..."`);
+    }
+    
+    const result = await analyzeWithTransformers(text);
+    
+    console.log("aiService: Analysis complete. Results received:");
+    console.log(`aiService: Summary length: ${result.summary.length} characters`);
+    console.log(`aiService: Key findings: ${result.keyFindings.length} items`);
+    console.log(`aiService: Recommendations: ${result.recommendations.length} items`);
+    
+    return result;
   } catch (error) {
-    console.error('Error analyzing report:', error);
+    console.error('aiService: Error analyzing report:', error);
     throw error;
   }
 }

@@ -1,11 +1,12 @@
-
 // Edge function for analyzing medical reports using the Hugging Face ClinicalBERT model
 
 export async function handler(req, context) {
   try {
+    console.log("Edge function: Starting medical report analysis");
     const { text } = await req.json();
     
     if (!text || text.trim() === '') {
+      console.error("Edge function: No text provided for analysis");
       return new Response(JSON.stringify({ 
         error: "No text provided for analysis" 
       }), { 
@@ -13,6 +14,8 @@ export async function handler(req, context) {
         headers: { 'Content-Type': 'application/json' } 
       });
     }
+    
+    console.log(`Edge function: Received text of length ${text.length}`);
     
     // Create a medical-specific prompt for the ClinicalBERT model
     const promptText = `
@@ -26,6 +29,18 @@ export async function handler(req, context) {
     RECOMMENDATIONS: [Provide 2-3 simple recommendations based on the findings]
     `;
 
+    console.log("Edge function: Sending request to Hugging Face API");
+    console.log("Edge function: Using model: medicalai/ClinicalBERT");
+    
+    // Log request params
+    console.log("Edge function: Request parameters:", {
+      max_new_tokens: 500,
+      temperature: 0.2,
+      top_p: 0.95
+    });
+    
+    const startTime = Date.now();
+    
     // Make a request to the Hugging Face API with ClinicalBERT model
     const response = await fetch("https://api-inference.huggingface.co/models/medicalai/ClinicalBERT", {
       method: "POST",
@@ -44,16 +59,27 @@ export async function handler(req, context) {
       }),
     });
     
+    const endTime = Date.now();
+    console.log(`Edge function: Hugging Face API response received in ${endTime - startTime}ms`);
+    console.log(`Edge function: Response status: ${response.status}`);
+    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Hugging Face API error:", errorText);
+      console.error("Edge function: Hugging Face API error:", errorText);
       throw new Error(`Hugging Face API returned status ${response.status}`);
     }
     
     const result = await response.json();
+    console.log("Edge function: Successfully parsed JSON response from Hugging Face");
+    
     const generatedText = result && result[0] && result[0].generated_text 
       ? result[0].generated_text 
       : "";
+    
+    console.log(`Edge function: Generated text length: ${generatedText.length} characters`);
+    if (generatedText.length > 0) {
+      console.log(`Edge function: Generated text sample: "${generatedText.substring(0, 100)}..."`);
+    }
       
     // Extract the summary from the response
     const summaryMatch = generatedText.match(/SUMMARY:(.*?)(?=KEY FINDINGS:|$)/s);
@@ -91,16 +117,19 @@ export async function handler(req, context) {
     
     // If we couldn't extract structured findings, add a generic one
     if (keyFindings.length === 0) {
+      console.log("Edge function: No structured findings extracted, adding generic finding");
       keyFindings.push({
         name: "Text Analysis",
         value: "Report processed",
         status: 'normal'
       });
+    } else {
+      console.log(`Edge function: Extracted ${keyFindings.length} key findings`);
     }
     
     // Extract recommendations from the response
     const recommendationsMatch = generatedText.match(/RECOMMENDATIONS:(.*?)(?=$)/s);
-    const recommendationsText = recommendationsMatch && recommendationsMatch[1] 
+    const recommendationsText = recommendationsMatch && recommendationsText[1] 
       ? recommendationsMatch[1].trim() 
       : "";
       
@@ -112,11 +141,16 @@ export async function handler(req, context) {
       
     // If we couldn't extract recommendations, add generic ones
     if (recommendations.length === 0) {
+      console.log("Edge function: No recommendations extracted, adding generic recommendations");
       recommendations.push(
         "Please consult with a healthcare professional for interpretation of these results",
         "Regular check-ups are recommended for monitoring your health"
       );
+    } else {
+      console.log(`Edge function: Extracted ${recommendations.length} recommendations`);
     }
+    
+    console.log("Edge function: Analysis complete. Returning results.");
     
     return new Response(JSON.stringify({
       summary,
@@ -127,7 +161,7 @@ export async function handler(req, context) {
       headers: { 'Content-Type': 'application/json' } 
     });
   } catch (error) {
-    console.error("Edge function error:", error);
+    console.error("Edge function: Error processing request:", error);
     
     return new Response(JSON.stringify({
       error: "Failed to analyze medical report",

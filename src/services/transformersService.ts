@@ -1,4 +1,3 @@
-
 /**
  * This file handles communication with the server-side transformer model via edge function
  */
@@ -15,7 +14,8 @@ interface AnalysisResult {
  */
 export async function analyzeWithTransformers(text: string): Promise<AnalysisResult> {
   try {
-    console.log("Sending text to edge function for analysis...");
+    console.log("transformersService: Starting edge function call for analysis...");
+    const startTime = performance.now();
     
     // Call the edge function to analyze the text
     const response = await fetch('/api/analyze-medical-report', {
@@ -26,22 +26,38 @@ export async function analyzeWithTransformers(text: string): Promise<AnalysisRes
       body: JSON.stringify({ text }),
     });
     
+    const endTime = performance.now();
+    console.log(`transformersService: Edge function call completed in ${(endTime - startTime).toFixed(2)}ms`);
+    console.log(`transformersService: Response status: ${response.status}`);
+    
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`transformersService: Edge function error: ${errorText}`);
       throw new Error(`Edge function returned status ${response.status}`);
     }
     
     const analysisResult = await response.json();
+    console.log("transformersService: Successfully parsed JSON response");
+    
+    // Log the shape of the response
+    console.log("transformersService: Response structure:", {
+      hasSummary: !!analysisResult.summary,
+      hasKeyFindings: Array.isArray(analysisResult.keyFindings),
+      hasRecommendations: Array.isArray(analysisResult.recommendations),
+    });
     
     // If the edge function provided a complete analysis, use it
     if (analysisResult && analysisResult.summary) {
       return analysisResult;
     }
     
+    console.log("transformersService: Incomplete response from edge function, using fallback");
     // Return a fallback analysis if the response is incomplete
     return createFallbackAnalysis(text);
     
   } catch (error) {
-    console.error("Error analyzing with edge function:", error);
+    console.error("transformersService: Error analyzing with edge function:", error);
+    console.log("transformersService: Using fallback analysis");
     return createFallbackAnalysis(text);
   }
 }
@@ -50,6 +66,7 @@ export async function analyzeWithTransformers(text: string): Promise<AnalysisRes
  * Creates a basic fallback analysis when the edge function fails
  */
 function createFallbackAnalysis(text: string): AnalysisResult {
+  console.log("transformersService: Creating fallback analysis");
   // Extract key medical terms using regex patterns
   const bloodGlucoseMatch = text.match(/(?:blood glucose|glucose)[:\s]+(\d+\.?\d*)\s*(?:mg\/dL|mmol\/L)/i);
   const cholesterolMatch = text.match(/(?:total cholesterol)[:\s]+(\d+\.?\d*)\s*(?:mg\/dL|mmol\/L)/i);
