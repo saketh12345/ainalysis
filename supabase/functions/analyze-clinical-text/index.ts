@@ -28,34 +28,48 @@ serve(async (req) => {
     
     console.log(`Edge function: Processing text of length ${text.length} characters`)
     
-    // Create a more focused medical prompt that addresses the specific requirements
+    // Create a medical analysis prompt for the Llama model
     const promptText = `
-    Analyze this lab report and extract only the relevant medical information:
+    <|system|>
+    You are a medical AI assistant specialized in analyzing lab reports. Analyze the following lab report carefully and provide:
+    1. A summary of the patient's overall health status
+    2. A list of only the abnormal values (too high or too low) with their status
+    3. 2-3 key insights or possible risks based on the report
+
+    Format your response exactly as follows:
+    SUMMARY: [Brief overview of patient health based on the report]
+    KEY FINDINGS: [List only abnormal metrics with their values and status]
+    RECOMMENDATIONS: [Provide 2-3 key insights based on the findings]
+    <|end|>
+    
+    <|user|>
+    Analyze this lab report text:
     
     ${text}
+    <|end|>
     
-    Format your response as follows:
-    SUMMARY: [Provide an overall summary of the patient's health status based on the report]
-    KEY FINDINGS: [List ONLY the abnormal values (too high or too low). Format each as "Metric: Value - Status". For example: "Cholesterol: 250 mg/dL - Abnormal"]
-    RECOMMENDATIONS: [Provide 2-3 key insights or possible risks based on the abnormal values in the report]
+    <|assistant|>
     `
 
     console.log("Edge function: Sending request to Hugging Face API")
-    console.log("Edge function: Using model: medicalai/ClinicalBERT")
+    console.log("Edge function: Using model: meta-llama/Meta-Llama-3-8B-Instruct")
     
     const startTime = Date.now()
     
-    // Make a request to the Hugging Face API with ClinicalBERT model
-    // ClinicalBERT is a BERT model, which doesn't support text generation parameters
-    // It's primarily a fill-mask model, so we need to use it differently
-    const response = await fetch("https://api-inference.huggingface.co/models/medicalai/ClinicalBERT", {
+    // Make a request to the Hugging Face API with Meta-Llama-3-8B-Instruct model
+    const response = await fetch("https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${Deno.env.get("HUGGING_FACE_ACCESS_TOKEN")}`
       },
       body: JSON.stringify({
-        inputs: promptText
+        inputs: promptText,
+        parameters: {
+          max_new_tokens: 512,
+          temperature: 0.2,
+          return_full_text: false
+        }
       }),
     })
     
@@ -67,26 +81,26 @@ serve(async (req) => {
       const errorText = await response.text()
       console.error(`Edge function: Hugging Face API error: ${errorText}`)
       
-      // Try using a fallback model that supports text generation
-      console.log("Edge function: Attempting to use fallback model for text generation")
+      // Try using a fallback approach
+      console.log("Edge function: Attempting to use fallback extraction")
       return await useFallbackModel(text, corsHeaders)
     }
     
     const result = await response.json()
     console.log("Edge function: Successfully parsed JSON response from Hugging Face")
     
-    // ClinicalBERT might not return generated text in the same format
+    // Extract the generated text from the response
     let generatedText = ""
-    if (result && result[0] && result[0].generated_text) {
+    if (result && Array.isArray(result) && result[0] && result[0].generated_text) {
       generatedText = result[0].generated_text
     } else if (result && typeof result === 'string') {
       generatedText = result
-    } else if (result && result.text) {
-      generatedText = result.text
+    } else if (result && result.generated_text) {
+      generatedText = result.generated_text
     } else {
-      console.log("Edge function: Unexpected response format from ClinicalBERT, using fallback")
-      console.log("Edge function: Response sample:", JSON.stringify(result).substring(0, 200))
-      return await useFallbackModel(text, corsHeaders)
+      // Log the actual shape of the response
+      console.log("Edge function: Unexpected response format:", JSON.stringify(result).substring(0, 200))
+      generatedText = JSON.stringify(result)
     }
     
     console.log(`Edge function: Generated text length: ${generatedText.length} characters`)
@@ -108,7 +122,8 @@ serve(async (req) => {
     const keyFindingsText = keyFindingsMatch && keyFindingsMatch[1] ? keyFindingsMatch[1].trim() : ""
     
     // Process the key findings text into structured data
-    const findingsRegex = /([^:]+):\s*([^-]+)-\s*(\w+)/g
+    // Look for patterns like "- Blood Pressure: 140/90 mmHg - Elevated" or "- Cholesterol: 240 mg/dL - High"
+    const findingsRegex = /[•\-\*]\s*([^:]+):\s*([^-]+)-\s*(\w+)/g
     let match
     const keyFindings = []
     
@@ -120,10 +135,11 @@ serve(async (req) => {
       // Map the status text to our defined statuses
       let status = 'normal'
       if (statusText.includes('abnormal') || statusText.includes('high') || 
-          statusText.includes('low') || statusText.includes('critical')) {
+          statusText.includes('low') || statusText.includes('critical') ||
+          statusText.includes('elevated')) {
         status = 'abnormal'
       } else if (statusText.includes('warning') || statusText.includes('borderline') || 
-                statusText.includes('elevated') || statusText.includes('moderate')) {
+                statusText.includes('moderate')) {
         status = 'warning'
       }
       
@@ -158,7 +174,7 @@ serve(async (req) => {
       
     // Split recommendations by line breaks or bullet points
     const recommendations = recommendationsText
-      .split(/\d+\.|\n-|\n\*/)
+      .split(/[•\-\*]|\d+\.|\n/)
       .map(item => item.trim())
       .filter(item => item.length > 10)
       

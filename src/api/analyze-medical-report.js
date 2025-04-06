@@ -1,5 +1,5 @@
 
-// Edge function for analyzing medical reports using the Hugging Face ClinicalBERT model
+// Edge function for analyzing medical reports using the Hugging Face Meta-Llama-3-8B-Instruct model
 
 export async function handler(req, context) {
   try {
@@ -18,36 +18,48 @@ export async function handler(req, context) {
     
     console.log(`Edge function: Received text of length ${text.length}`);
     
-    // Create a medical-specific prompt for the ClinicalBERT model
+    // Create a medical-specific prompt for the Llama model
     const promptText = `
-    Analyze this medical report and extract key health information:
+    <|system|>
+    You are a medical AI assistant specialized in analyzing lab reports. Analyze the following lab report carefully and provide:
+    1. A summary of the patient's overall health status
+    2. A list of only the abnormal values (too high or too low) with their status
+    3. 2-3 key insights or possible risks based on the report
+
+    Format your response exactly as follows:
+    SUMMARY: [Brief overview of patient health based on the report]
+    KEY FINDINGS: [List only abnormal metrics with their values and status]
+    RECOMMENDATIONS: [Provide 2-3 key insights based on the findings]
+    <|end|>
+    
+    <|user|>
+    Analyze this lab report text:
     
     ${text}
+    <|end|>
     
-    Format your response as follows:
-    SUMMARY: [Brief overview of patient health based on the report]
-    KEY FINDINGS: [List key metrics with their values and status (normal/abnormal/warning)]
-    RECOMMENDATIONS: [Provide 2-3 simple recommendations based on the findings]
+    <|assistant|>
     `;
 
     console.log("Edge function: Sending request to Hugging Face API");
-    console.log("Edge function: Using model: medicalai/ClinicalBERT");
-    
-    // Log request params
-    console.log("Edge function: Request simplified for compatibility with ClinicalBERT model");
+    console.log("Edge function: Using model: meta-llama/Meta-Llama-3-8B-Instruct");
     
     const startTime = Date.now();
     
-    // Make a request to the Hugging Face API with ClinicalBERT model
-    // Simplified request without unsupported parameters
-    const response = await fetch("https://api-inference.huggingface.co/models/medicalai/ClinicalBERT", {
+    // Make a request to the Hugging Face API with Meta-Llama-3-8B-Instruct model
+    const response = await fetch("https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer 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`
       },
       body: JSON.stringify({
-        inputs: promptText
+        inputs: promptText,
+        parameters: {
+          max_new_tokens: 512,
+          temperature: 0.2,
+          return_full_text: false
+        }
       }),
     });
     
@@ -64,15 +76,14 @@ export async function handler(req, context) {
     const result = await response.json();
     console.log("Edge function: Successfully parsed JSON response from Hugging Face");
     
-    // ClinicalBERT might not return generated text in the expected format
-    // Handle different possible response formats
+    // Extract the generated text from the response
     let generatedText = "";
-    if (result && result[0] && result[0].generated_text) {
+    if (result && Array.isArray(result) && result[0] && result[0].generated_text) {
       generatedText = result[0].generated_text;
     } else if (result && typeof result === 'string') {
       generatedText = result;
-    } else if (result && result.text) {
-      generatedText = result.text;
+    } else if (result && result.generated_text) {
+      generatedText = result.generated_text;
     } else {
       // Log the actual shape of the response
       console.log("Edge function: Unexpected response format:", JSON.stringify(result).substring(0, 200));
@@ -95,8 +106,8 @@ export async function handler(req, context) {
     const keyFindingsText = keyFindingsMatch && keyFindingsMatch[1] ? keyFindingsMatch[1].trim() : "";
     
     // Process the key findings text into structured data
-    // For simplicity, we'll extract lines that look like "[metric]: [value] - [status]"
-    const findingsRegex = /([^:]+):\s*([^-]+)-\s*(\w+)/g;
+    // Look for patterns like "- Blood Pressure: 140/90 mmHg - Elevated" or "- Cholesterol: 240 mg/dL - High"
+    const findingsRegex = /[•\-\*]\s*([^:]+):\s*([^-]+)-\s*(\w+)/g;
     let match;
     const keyFindings = [];
     
@@ -108,10 +119,11 @@ export async function handler(req, context) {
       // Map the status text to our defined statuses
       let status = 'normal';
       if (statusText.includes('abnormal') || statusText.includes('high') || 
-          statusText.includes('low') || statusText.includes('critical')) {
+          statusText.includes('low') || statusText.includes('critical') ||
+          statusText.includes('elevated')) {
         status = 'abnormal';
       } else if (statusText.includes('warning') || statusText.includes('borderline') || 
-                statusText.includes('elevated') || statusText.includes('moderate')) {
+                statusText.includes('moderate')) {
         status = 'warning';
       }
       
@@ -176,7 +188,7 @@ export async function handler(req, context) {
       
     // Split recommendations by line breaks or bullet points
     const recommendations = recommendationsText
-      .split(/\d+\.|\n-|\n\*/)
+      .split(/[•\-\*]|\d+\.|\n/)
       .map(item => item.trim())
       .filter(item => item.length > 10);
       
