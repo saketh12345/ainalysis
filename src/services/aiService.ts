@@ -29,6 +29,7 @@ export async function analyzeReport(text: string): Promise<AnalysisResult> {
           "List of simple recommendations based on the results"
         ]
       }
+      IMPORTANT: The "status" field must ONLY be one of these three values: "normal", "abnormal", or "warning".
     `;
 
     const messages: Message[] = [
@@ -39,7 +40,7 @@ export async function analyzeReport(text: string): Promise<AnalysisResult> {
     console.log("Sending request to OpenRouter API");
     
     // If the AI response fails, we'll provide a fallback analysis
-    const fallbackAnalysis = {
+    const fallbackAnalysis: AnalysisResult = {
       summary: "We were unable to analyze this report automatically. Please consult with your healthcare provider for interpretation.",
       keyFindings: [
         { 
@@ -112,12 +113,36 @@ export async function analyzeReport(text: string): Promise<AnalysisResult> {
         throw new Error("AI response is not a valid object");
       }
       
-      // Ensure all required fields exist or set defaults
-      return {
+      // Properly validate and process the keyFindings
+      let validKeyFindings = [];
+      
+      if (Array.isArray(parsedResult.keyFindings)) {
+        validKeyFindings = parsedResult.keyFindings.map(finding => {
+          // Ensure status is one of the valid values
+          let validStatus: 'normal' | 'abnormal' | 'warning' = 'normal';
+          
+          if (finding.status === 'normal' || finding.status === 'abnormal' || finding.status === 'warning') {
+            validStatus = finding.status as 'normal' | 'abnormal' | 'warning';
+          } else {
+            console.warn(`Invalid status value "${finding.status}" detected, defaulting to "normal"`);
+          }
+          
+          return {
+            name: finding.name || "Unknown test",
+            value: finding.value || "No value",
+            status: validStatus
+          };
+        });
+      }
+      
+      // Ensure all required fields exist and have proper types
+      const result: AnalysisResult = {
         summary: parsedResult.summary || "No summary available",
-        keyFindings: Array.isArray(parsedResult.keyFindings) ? parsedResult.keyFindings : [],
+        keyFindings: validKeyFindings,
         recommendations: Array.isArray(parsedResult.recommendations) ? parsedResult.recommendations : []
       };
+      
+      return result;
     } catch (parseError) {
       console.error('Error parsing AI response:', parseError);
       // Use fallback if parsing fails
