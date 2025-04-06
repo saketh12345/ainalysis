@@ -30,7 +30,7 @@ export async function initBiomedicalAnalyzer() {
       'text-generation',
       'Xenova/distilgpt2',  // Using Xenova's browser-optimized version of distilgpt2
       { 
-        quantized: true,    // Use quantized model for better browser performance
+        // Remove the quantized option that's causing the TypeScript error
         device: 'cpu'       // Explicitly use CPU for compatibility
       }
     );
