@@ -5,7 +5,8 @@ import { pipeline, env } from '@huggingface/transformers';
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 // Set the Hugging Face token
-env.apiToken = "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";
+// The correct way to set the token according to the current API
+env.hf_token = "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";
 
 interface AnalysisResult {
   summary: string;
