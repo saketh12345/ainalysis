@@ -4,6 +4,8 @@ import { pipeline, env } from '@huggingface/transformers';
 // Configure the transformers library
 env.allowLocalModels = false;
 env.useBrowserCache = true;
+// Set the Hugging Face token
+env.accessToken = "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";
 
 interface AnalysisResult {
   summary: string;
@@ -23,22 +25,22 @@ export async function initBiomedicalAnalyzer() {
   
   try {
     biomedicalModelLoading = true;
-    console.log("Loading biomedical text analysis model...");
+    console.log("Loading Llama 3 text analysis model...");
     
-    // Use a smaller, more browser-friendly model
+    // Use Meta-Llama-3-8B-Instruct model
     biomedicalAnalyzer = await pipeline(
       'text-generation',
-      'Xenova/distilgpt2',  // Using Xenova's browser-optimized version of distilgpt2
+      'meta-llama/Meta-Llama-3-8B-Instruct',
       { 
-        // Remove the quantized option that's causing the TypeScript error
-        device: 'cpu'       // Explicitly use CPU for compatibility
+        device: 'cpu',       // Explicitly use CPU for compatibility
+        use_auth_token: "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" // Use the token
       }
     );
     
-    console.log("Biomedical model loaded successfully");
+    console.log("Llama 3 model loaded successfully");
     return true;
   } catch (error) {
-    console.error("Error loading biomedical model:", error);
+    console.error("Error loading Llama 3 model:", error);
     return false;
   } finally {
     biomedicalModelLoading = false;
@@ -55,14 +57,26 @@ export async function analyzeWithTransformers(text: string): Promise<AnalysisRes
     if (biomedicalAnalyzer === null) {
       const success = await initBiomedicalAnalyzer();
       if (!success) {
-        throw new Error("Could not load biomedical model");
+        throw new Error("Could not load Llama 3 model");
       }
     }
     
-    console.log("Analyzing text with transformers model...");
+    console.log("Analyzing text with Llama 3 model...");
+    
+    // Create a medical-specific prompt for better results
+    const promptText = `
+    You are a medical AI assistant analyzing a patient's medical report. 
+    Extract key health metrics, identify abnormal values, and provide a concise summary.
+    
+    Medical report: ${text}
+    
+    Format your response as follows:
+    SUMMARY: [Brief overview of patient health based on the report]
+    KEY FINDINGS: [List key metrics with their values and status (normal/abnormal/warning)]
+    RECOMMENDATIONS: [Provide 2-3 simple recommendations based on the findings]
+    `;
     
     // Extract key medical terms using regex patterns
-    // (since we don't have a specialized biomedical NER model in browser yet)
     const bloodGlucoseMatch = text.match(/(?:blood glucose|glucose)[:\s]+(\d+\.?\d*)\s*(?:mg\/dL|mmol\/L)/i);
     const cholesterolMatch = text.match(/(?:total cholesterol)[:\s]+(\d+\.?\d*)\s*(?:mg\/dL|mmol\/L)/i);
     const bloodPressureMatch = text.match(/(?:blood pressure|BP)[:\s]+(\d+\/\d+)\s*(?:mmHg)/i);
@@ -107,47 +121,65 @@ export async function analyzeWithTransformers(text: string): Promise<AnalysisRes
       });
     }
     
-    // Generate a simple analysis summary with the text generation model
+    // Generate a comprehensive analysis using the Llama 3 model
     let summary;
+    let recommendations = [
+      "Please consult with a healthcare professional for interpretation of these results",
+      "Regular check-ups are recommended for monitoring your health"
+    ];
+    
     try {
-      const promptText = `Medical report summary: ${text.substring(0, 100)}...`;
-      const summaryResult = await biomedicalAnalyzer(
+      const llmResult = await biomedicalAnalyzer(
         promptText,
         { 
-          max_new_tokens: 50, 
+          max_new_tokens: 500,
           do_sample: true,
-          temperature: 0.7
+          temperature: 0.2,
+          top_p: 0.95
         }
       );
       
-      // Extract the generated text and clean it up
-      summary = summaryResult[0]?.generated_text || "";
-      // Remove the input prompt from the output
-      summary = summary.replace(promptText, "").trim();
+      // Extract the generated text
+      const generatedText = llmResult[0]?.generated_text || "";
       
-      // If the summary is empty or too short, use a default message
-      if (!summary || summary.length < 20) {
+      // Try to extract the summary from the response
+      const summaryMatch = generatedText.match(/SUMMARY:(.*?)(?=KEY FINDINGS:|$)/s);
+      if (summaryMatch && summaryMatch[1]) {
+        summary = summaryMatch[1].trim();
+      } else {
         summary = "Medical report processed. Please consult a healthcare professional for interpretation.";
       }
+      
+      // Try to extract recommendations
+      const recommendationsMatch = generatedText.match(/RECOMMENDATIONS:(.*?)(?=$)/s);
+      if (recommendationsMatch && recommendationsMatch[1]) {
+        const recommendationsText = recommendationsMatch[1].trim();
+        const extractedRecommendations = recommendationsText
+          .split(/\d+\.|\n-|\n\*/)
+          .map(item => item.trim())
+          .filter(item => item.length > 10);
+        
+        if (extractedRecommendations.length > 0) {
+          recommendations = extractedRecommendations;
+        }
+      }
+      
     } catch (summaryError) {
-      console.error("Error generating summary:", summaryError);
+      console.error("Error generating analysis with Llama 3:", summaryError);
       summary = "Medical report processed. The browser-based analysis provides basic insights only.";
     }
     
     return {
       summary,
       keyFindings: findings,
-      recommendations: [
-        "Please consult with a healthcare professional for interpretation of these results",
-        "Regular check-ups are recommended for monitoring your health"
-      ]
+      recommendations: recommendations
     };
   } catch (error) {
     console.error("Error analyzing with transformers:", error);
     
     // Return a fallback analysis
     return {
-      summary: "We could not automatically analyze this report using the browser-based model. Please consult with your healthcare provider for interpretation.",
+      summary: "We could not automatically analyze this report using the Llama 3 model. Please consult with your healthcare provider for interpretation.",
       keyFindings: [
         { 
           name: "Analysis Status", 
