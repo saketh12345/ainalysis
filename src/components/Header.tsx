@@ -1,18 +1,39 @@
 
-import { useIsMobile } from "@/hooks/use-mobile";
+import { Link } from "react-router-dom";
+import { Home, InfoIcon, Contact, ShieldHeart } from "lucide-react";
 
 export default function Header() {
   return (
-    <div className="w-full border-b border-gray-200 bg-white/50 backdrop-blur-sm">
-      <div className="container flex h-16 items-center">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-medical-primary to-medical-accent flex items-center justify-center">
-            <div className="w-3 h-3 bg-white rounded-full" />
-          </div>
-          <span className="font-bold text-xl text-medical-dark">MediView AI</span>
-        </div>
-        <span className="ml-2 text-sm text-gray-500 hidden md:inline-block">Medical Report Analyzer</span>
+    <header className="w-full border-b border-gray-200 bg-white py-3">
+      <div className="container flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2 text-medivault-primary">
+          <ShieldHeart className="h-6 w-6" />
+          <span className="font-bold text-xl">MediVault</span>
+        </Link>
+        
+        <nav>
+          <ul className="flex items-center gap-6">
+            <li>
+              <Link to="/" className="flex items-center gap-1 text-gray-700 hover:text-medivault-primary">
+                <Home className="h-4 w-4" />
+                <span>Home</span>
+              </Link>
+            </li>
+            <li>
+              <Link to="/about" className="flex items-center gap-1 text-gray-700 hover:text-medivault-primary">
+                <InfoIcon className="h-4 w-4" />
+                <span>About</span>
+              </Link>
+            </li>
+            <li>
+              <Link to="/contact" className="flex items-center gap-1 text-gray-700 hover:text-medivault-primary">
+                <Contact className="h-4 w-4" />
+                <span>Contact</span>
+              </Link>
+            </li>
+          </ul>
+        </nav>
       </div>
-    </div>
+    </header>
   );
 }

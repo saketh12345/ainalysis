@@ -68,6 +68,14 @@ export default {
 					primary: '#2196F3',
 					dark: '#1565C0',
 					accent: '#4FC3F7',
+				},
+				medivault: {
+					primary: '#2196F3',
+					secondary: '#F5F9FF',
+					dark: '#1E2537',
+					light: '#F6F8FD',
+					error: '#FF4D4F',
+					text: '#2D3748',
 				}
 			},
 			borderRadius: {
