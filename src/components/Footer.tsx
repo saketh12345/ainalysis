@@ -1,5 +1,5 @@
 
-import { ShieldHeart, Mail, Phone, MapPin } from "lucide-react";
+import { Shield, Mail, Phone, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function Footer() {
@@ -10,7 +10,7 @@ export default function Footer() {
           {/* Company Info */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <ShieldHeart className="h-6 w-6 text-medivault-primary" />
+              <Shield className="h-6 w-6 text-medivault-primary" />
               <span className="font-bold text-xl">MediVault</span>
             </div>
             <p className="text-sm text-gray-300">

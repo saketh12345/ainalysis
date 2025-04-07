@@ -1,13 +1,13 @@
 
 import { Link } from "react-router-dom";
-import { Home, InfoIcon, Contact, ShieldHeart } from "lucide-react";
+import { Home, InfoIcon, Contact, Shield } from "lucide-react";
 
 export default function Header() {
   return (
     <header className="w-full border-b border-gray-200 bg-white py-3">
       <div className="container flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-medivault-primary">
-          <ShieldHeart className="h-6 w-6" />
+          <Shield className="h-6 w-6" />
           <span className="font-bold text-xl">MediVault</span>
         </Link>
         
