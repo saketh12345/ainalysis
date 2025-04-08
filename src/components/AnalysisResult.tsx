@@ -54,7 +54,39 @@ export default function AnalysisResult({
         <p className="text-gray-700">{summary}</p>
       </section>
 
-      {/* The Key Findings section is now hidden as per the requirement */}
+      <section className="bg-white p-6 rounded-lg shadow-sm border">
+  <h3 className="text-xl font-semibold mb-4 text-medivault-text">Key Findings</h3>
+  {keyFindings.length > 0 ? (
+    <div className="grid gap-4 md:grid-cols-2">
+      {keyFindings.map((finding, index) => (
+        <Card key={index} className={cn(
+          "overflow-hidden",
+          finding.status === 'abnormal' && "border-red-400",
+          finding.status === 'warning' && "border-amber-400",
+          finding.status === 'normal' && "border-green-400"
+        )}>
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="font-medium">{finding.name}</h4>
+              <span className={cn(
+                "px-2 py-1 text-xs rounded-full",
+                finding.status === 'abnormal' && "bg-red-100 text-red-800",
+                finding.status === 'warning' && "bg-amber-100 text-amber-800",
+                finding.status === 'normal' && "bg-green-100 text-green-800"
+              )}>
+                {finding.status.charAt(0).toUpperCase() + finding.status.slice(1)}
+              </span>
+            </div>
+            <p className="text-lg font-semibold">{finding.value}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  ) : (
+    <p className="text-gray-500 italic">No key findings available</p>
+  )}
+</section>
+
 
       <section className="bg-white p-6 rounded-lg shadow-sm border">
         <h3 className="text-xl font-semibold mb-4 text-medivault-text">Recommendations</h3>
