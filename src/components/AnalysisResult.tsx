@@ -50,53 +50,11 @@ export default function AnalysisResult({
   return (
     <div className="mt-8 space-y-6">
       <section className="bg-white p-6 rounded-lg shadow-sm border">
-        <h3 className="text-xl font-semibold mb-3 text-medivault-text">Analysis Summary</h3>
+        <h3 className="text-xl font-semibold mb-3 text-medivault-text">Detailed Analysis</h3>
         <p className="text-gray-700">{summary}</p>
       </section>
 
-      <section className="bg-white p-6 rounded-lg shadow-sm border">
-        <h3 className="text-xl font-semibold mb-4 text-medivault-text">Key Findings</h3>
-        <div className="space-y-4">
-          {keyFindings.map((finding, index) => (
-            <div key={index} className="space-y-2">
-              <div className="flex justify-between">
-                <h4 className="font-medium">{finding.name}</h4>
-                <span
-                  className={cn(
-                    "px-2 py-0.5 rounded-full text-xs font-medium",
-                    finding.status === "normal" && "bg-green-100 text-green-800",
-                    finding.status === "abnormal" && "bg-red-100 text-red-800",
-                    finding.status === "warning" && "bg-amber-100 text-amber-800"
-                  )}
-                >
-                  {finding.status}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-full">
-                  <Progress
-                    value={
-                      finding.status === "normal" ? 50 :
-                      finding.status === "abnormal" ? 80 : 65
-                    }
-                    className={cn(
-                      finding.status === "normal" && "bg-green-100 [&>div]:bg-green-500",
-                      finding.status === "abnormal" && "bg-red-100 [&>div]:bg-red-500",
-                      finding.status === "warning" && "bg-amber-100 [&>div]:bg-amber-500"
-                    )}
-                  />
-                </div>
-                <span className="font-medium">{finding.value}</span>
-              </div>
-              {index < keyFindings.length - 1 && <Separator className="my-2" />}
-            </div>
-          ))}
-
-          {keyFindings.length === 0 && (
-            <p className="text-gray-500 italic">No key findings detected</p>
-          )}
-        </div>
-      </section>
+      {/* The Key Findings section is now hidden as per the requirement */}
 
       <section className="bg-white p-6 rounded-lg shadow-sm border">
         <h3 className="text-xl font-semibold mb-4 text-medivault-text">Recommendations</h3>
